@@ -8,8 +8,8 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/sanchezsase1991-sys/Nexo/internal/bus"
-	"github.com/sanchezsase1991-sys/Nexo/internal/scheduler"
+	"github.com/sanchezsase1991-sys/Nexo_ss/internal/bus"
+	"github.com/sanchezsase1991-sys/Nexo_ss/internal/scheduler"
 )
 
 type Reframer struct {
