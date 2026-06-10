@@ -266,7 +266,7 @@ func main() {
 		}
 	}()
 
-	log.Println("[NEXO] Sistema completo. 8 nuevos módulos integrados.")
+	log.Println("[NEXO] Sistema completo. 9 nuevos módulos integrados.")
 
 	go func() {
 		time.Sleep(1 * time.Second)
