@@ -23,13 +23,16 @@ func main() {
 	}
 	defer mem.Close()
 
+	// ─── Registro de Estado ───
 	state := modules.NewStateRegister(clock)
 	state.SetScheduler(sched)
 	state.StartDecay()
 	defer state.Stop()
 
+	// ─── Intérprete ───
 	interpreter := modules.NewDefaultInterpreter()
 
+	// ─── Módulos Base ───
 	reframer := modules.NewReframer(state, clock)
 	reframer.SetScheduler(sched)
 
@@ -65,6 +68,7 @@ func main() {
 
 	circuitBreaker := modules.NewCircuitBreaker(100, 30000)
 
+	// ─── LLM ───
 	llmPool := llm.NewLLMPool()
 	reasoningWorker, err := llm.NewWorker(1, "./model/qwen2.5-coder-3b-Q4_K_M.gguf", 8192, 4, "reasoning")
 	if err != nil {
@@ -75,12 +79,14 @@ func main() {
 	llmBridge := modules.NewLLMBridge(llmPool, clock)
 	llmBridge.SetScheduler(sched)
 
+	// ─── Planificador Central ───
 	planner := modules.NewControlPlanner(state, clock, interpreter)
 	planner.SetScheduler(sched)
 	planner.SetPredictiveSimulator(predictive)
 	planner.SetSocialAnalyzer(socialAnalyzer)
 	planner.SetWorkingMemory(wm)
 
+	// ─── Salida ───
 	formatter := modules.NewOutputFormatter(state, clock, interpreter)
 	formatter.SetScheduler(sched)
 
@@ -89,9 +95,36 @@ func main() {
 
 	sink := modules.NewOutputSink()
 
+	// ─── 8 NUEVOS MÓDULOS ───
+	inhibitoryCtrl := modules.NewInhibitoryControl(state, socialAnalyzer, clock)
+	inhibitoryCtrl.SetScheduler(sched)
+
+	resourceEst := modules.NewResourceEstimator(state, clock)
+	resourceEst.SetScheduler(sched)
+
+	fatigueComp := modules.NewFatigueCompensator(state, wm, clock)
+	fatigueComp.SetScheduler(sched)
+
+	reprUpdater := modules.NewRepresentationUpdater(state, clock)
+	reprUpdater.SetScheduler(sched)
+
+	assocManip := modules.NewAssociativeManipulator(wm, ltm, clock)
+	assocManip.SetScheduler(sched)
+
+	knowledgeLinker := modules.NewKnowledgeLinker(ltm, clock)
+	knowledgeLinker.SetScheduler(sched)
+
+	outputMon := modules.NewOutputMonitor(state, clock)
+	outputMon.SetScheduler(sched)
+
+	semanticNet := modules.NewSemanticNetwork(clock)
+	semanticNet.SetScheduler(sched)
+
+	// ─── REGISTRO DE HANDLERS ───
 	shutdownCh := make(chan struct{})
 
 	sched.Register(bus.Perception, tagger.Handle)
+
 	sched.Register(bus.Thought, reframer.Handle)
 	sched.Register(bus.Thought, state.Handle)
 	sched.Register(bus.Thought, wm.Handle)
@@ -100,63 +133,66 @@ func main() {
 	sched.Register(bus.Thought, toolDecider.Handle)
 	sched.Register(bus.Thought, llmBridge.Handle)
 	sched.Register(bus.Thought, planner.Handle)
+
+	// 8 nuevos handlers de Thought
+	sched.Register(bus.Thought, inhibitoryCtrl.Handle)
+	sched.Register(bus.Thought, reprUpdater.Handle)
+	sched.Register(bus.Thought, assocManip.Handle)
+	sched.Register(bus.Thought, knowledgeLinker.Handle)
+	sched.Register(bus.Thought, semanticNet.Handle)
+
 	sched.Register(bus.Meta, state.Handle)
 	sched.Register(bus.Meta, ltm.Handle)
 	sched.Register(bus.Meta, mcm.Handle)
 	sched.Register(bus.Meta, attentionCtrl.Handle)
+	sched.Register(bus.Meta, fatigueComp.Handle)
+
 	sched.Register(bus.Memory, wm.Handle)
 	sched.Register(bus.Memory, ltm.Handle)
+
 	sched.Register(bus.Action, arr.Handle)
 	sched.Register(bus.Action, ltm.Handle)
 	sched.Register(bus.Action, formatter.Handle)
-	sched.Register(bus.Output, sink.Handle)
+	sched.Register(bus.Action, outputMon.Handle)
 
+	sched.Register(bus.Output, sink.Handle)
+	sched.Register(bus.Output, outputMon.Handle)
+
+	// ─── LOOPS DE FONDO ───
 	go func() {
 		ticker := time.NewTicker(10 * time.Millisecond)
 		defer ticker.Stop()
-		for range ticker.C {
-			sched.Tick()
-		}
+		for range ticker.C { sched.Tick() }
 	}()
 
 	go func() {
 		ticker := time.NewTicker(1 * time.Second)
 		defer ticker.Stop()
-		for range ticker.C {
-			state.DecayTick()
-		}
+		for range ticker.C { state.DecayTick() }
 	}()
 
 	go func() {
 		ticker := time.NewTicker(5 * time.Second)
 		defer ticker.Stop()
-		for range ticker.C {
-			wm.DecayChunks(state.GetState())
-		}
+		for range ticker.C { wm.DecayChunks(state.GetState()) }
 	}()
 
 	go func() {
 		ticker := time.NewTicker(2 * time.Second)
 		defer ticker.Stop()
-		for range ticker.C {
-			tagger.FlushMediumQueue()
-		}
+		for range ticker.C { tagger.FlushMediumQueue() }
 	}()
 
 	go func() {
 		ticker := time.NewTicker(5 * time.Second)
 		defer ticker.Stop()
-		for range ticker.C {
-			tagger.FlushLowQueue()
-		}
+		for range ticker.C { tagger.FlushLowQueue() }
 	}()
 
 	go func() {
 		ticker := time.NewTicker(3 * time.Second)
 		defer ticker.Stop()
-		for range ticker.C {
-			tagger.PromoteFromLow(state.GetState())
-		}
+		for range ticker.C { tagger.PromoteFromLow(state.GetState()) }
 	}()
 
 	mcm.StartMonitoring()
@@ -165,9 +201,7 @@ func main() {
 	go func() {
 		ticker := time.NewTicker(10 * time.Second)
 		defer ticker.Stop()
-		for range ticker.C {
-			ltm.PeriodicArchive()
-		}
+		for range ticker.C { ltm.PeriodicArchive() }
 	}()
 
 	go func() {
@@ -175,17 +209,14 @@ func main() {
 		defer ticker.Stop()
 		for {
 			select {
-			case <-shutdownCh:
-				return
+			case <-shutdownCh: return
 			case <-ticker.C:
-				for _, pkt := range sched.FlushOutput() {
-					sink.Handle(pkt)
-				}
+				for _, pkt := range sched.FlushOutput() { sink.Handle(pkt) }
 			}
 		}
 	}()
 
-	log.Println("[NEXO] Sistema completo. Pipeline cognitivo + LLM + 27 herramientas.")
+	log.Println("[NEXO] Sistema completo. 8 nuevos módulos integrados.")
 
 	go func() {
 		time.Sleep(1 * time.Second)
@@ -197,5 +228,6 @@ func main() {
 	}()
 
 	_ = circuitBreaker
+	_ = resourceEst
 	select {}
 }
