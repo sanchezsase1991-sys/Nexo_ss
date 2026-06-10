@@ -1,6 +1,6 @@
 package modules
 
-import "github.com/sanchezsase1991-sys/Nexo/internal/bus"
+import "github.com/sanchezsase1991-sys/Nexo_ss/internal/bus"
 
 type Interpreter interface {
 	GenerateMessage(thought bus.ThoughtState, decision string, score float64) string
