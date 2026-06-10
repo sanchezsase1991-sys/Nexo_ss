@@ -3,7 +3,6 @@ package modules
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"math"
 	"sync"
 
@@ -166,7 +165,12 @@ func (cp *ControlPlanner) decisionScore(in DecisionInput) float64 {
 
 func (cp *ControlPlanner) getDegradationPhase(state SystemState, impact CapacityImpact) DegradationPhase {
 	ccv := cp.calculateCCV(state, impact)
-	switch { case ccv > 70: return PhaseProductiva; case ccv > 40: return PhaseDegradacion; case ccv > 20: return PhaseAgotamiento; default: return PhaseModoSeguro }
+	switch {
+	case ccv > 70: return PhaseProductiva
+	case ccv > 40: return PhaseDegradacion
+	case ccv > 20: return PhaseAgotamiento
+	default: return PhaseModoSeguro
+	}
 }
 
 func (cp *ControlPlanner) calculateCCV(state SystemState, impact CapacityImpact) float64 {
@@ -185,13 +189,25 @@ func (cp *ControlPlanner) executeOrDefer(pkt bus.CognitivePacket, thought bus.Th
 		collapsed := impact.SaturationLevel == SaturationCritical
 		message := cp.interpreter.GenerateMessage(thought, result.State.String(), result.Score)
 		tone := cp.interpreter.SelectTone(state, thought)
-		actionPayload, _ := json.Marshal(map[string]any{"message": message, "tone": tone, "decision": result.State.String(), "score": result.Score, "degraded_mode": degraded, "collapsed": collapsed, "rumination": result.Rumiacion, "thought_id": thought.OriginalID})
-		cp.sched.Emit(bus.CognitivePacket{ID: fmt.Sprintf("dec_%s", pkt.ID), Type: bus.Action, Source: "control_planner", Target: "output_formatter", Priority: 85, Timestamp: cp.clock.NowMilli(), Payload: actionPayload, Tags: append(thought.Tags, result.State.String()), TTL: 5})
+		actionPayload, _ := json.Marshal(map[string]any{
+			"message": message, "tone": tone, "decision": result.State.String(),
+			"score": result.Score, "degraded_mode": degraded, "collapsed": collapsed,
+			"rumination": result.Rumiacion, "thought_id": thought.OriginalID,
+		})
+		cp.sched.Emit(bus.CognitivePacket{
+			ID: fmt.Sprintf("dec_%s", pkt.ID), Type: bus.Action, Source: "control_planner",
+			Target: "output_formatter", Priority: 85, Timestamp: cp.clock.NowMilli(),
+			Payload: actionPayload, Tags: append(thought.Tags, result.State.String()), TTL: 5,
+		})
 	} else if result.Reenqueue {
 		cp.mu.Lock()
 		cp.pendingDecisions = append(cp.pendingDecisions, PendingDecision{Packet: pkt, Thought: thought, State: state, Timestamp: cp.clock.NowMilli()})
 		cp.mu.Unlock()
 	} else {
-		cp.sched.Emit(bus.CognitivePacket{ID: fmt.Sprintf("blocked_%s", pkt.ID), Type: bus.Meta, Source: "control_planner", Target: "state_register", Priority: 30, Timestamp: cp.clock.NowMilli(), Payload: []byte(`{"saturacion_delta":0.02}`), TTL: 2})
+		cp.sched.Emit(bus.CognitivePacket{
+			ID: fmt.Sprintf("blocked_%s", pkt.ID), Type: bus.Meta, Source: "control_planner",
+			Target: "state_register", Priority: 30, Timestamp: cp.clock.NowMilli(),
+			Payload: []byte(`{"saturacion_delta":0.02}`), TTL: 2,
+		})
 	}
 }

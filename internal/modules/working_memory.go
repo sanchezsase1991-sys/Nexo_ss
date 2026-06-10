@@ -79,10 +79,10 @@ func (wm *WorkingMemoryManager) DecayChunks(state SystemState) {
 	default: dr = 0.97
 	}
 	wm.mu.Lock()
-	oc := wm.chunks
+	oC := wm.chunks
 	wm.chunks = int(float64(wm.chunks) * dr)
 	wm.mu.Unlock()
-	if oc > 3 && float64(wm.chunks)/float64(clampInt(oc, 1, oc)) < 0.85 {
+	if oC > 3 && float64(wm.chunks)/float64(clampInt(oC, 1, oC)) < 0.85 {
 		wm.sched.Emit(bus.CognitivePacket{
 			ID: fmt.Sprintf("wm_decay_%d", wm.clock.NowMilli()), Type: bus.Meta,
 			Source: "working_memory", Target: "state_register", Priority: 40,

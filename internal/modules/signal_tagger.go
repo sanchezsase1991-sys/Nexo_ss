@@ -3,7 +3,6 @@ package modules
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"strings"
 	"sync"
 
@@ -39,7 +38,7 @@ func (st *SignalTagger) SetStateRegister(sr *StateRegister)  { st.stateReg = sr 
 
 func (st *SignalTagger) Handle(pkt bus.CognitivePacket) {
 	if pkt.Type != bus.Perception { return }
-	if st.stateReg == nil { log.Printf("[SignalTagger] StateRegister not configured"); return }
+	if st.stateReg == nil { return }
 	payload := string(pkt.Payload)
 	intensity := 0.5
 	for _, t := range pkt.Tags { if strings.HasPrefix(t, "intensity:") { fmt.Sscanf(t, "intensity:%f", &intensity) } }
@@ -104,7 +103,12 @@ func (st *SignalTagger) PromoteFromLow(state SystemState) {
 	promoted := []taggedSignal{}
 	remaining := []taggedSignal{}
 	for _, sig := range st.lowQueue {
-		if sig.intensity > 0.6 || (state.Intensidad > 0.5 && sig.relevance > 0.2) { sig.relevance = clamp(sig.relevance*1.5, 0, 1); promoted = append(promoted, sig) } else { remaining = append(remaining, sig) }
+		if sig.intensity > 0.6 || (state.Intensidad > 0.5 && sig.relevance > 0.2) {
+			sig.relevance = clamp(sig.relevance*1.5, 0, 1)
+			promoted = append(promoted, sig)
+		} else {
+			remaining = append(remaining, sig)
+		}
 	}
 	st.lowQueue = remaining
 	st.mu.Unlock()
@@ -112,8 +116,12 @@ func (st *SignalTagger) PromoteFromLow(state SystemState) {
 }
 
 func (st *SignalTagger) emitSignal(signal taggedSignal) {
-	out, err := json.Marshal(map[string]any{"id": signal.pkt.ID, "payload": string(signal.pkt.Payload), "relevance_score": signal.relevance, "tier": signal.tier, "tags": signal.tags, "intensity": signal.intensity})
-	if err != nil { log.Printf("signal_tagger: marshal error: %v", err); return }
+	out, err := json.Marshal(map[string]any{
+		"id": signal.pkt.ID, "payload": string(signal.pkt.Payload),
+		"relevance_score": signal.relevance, "tier": signal.tier,
+		"tags": signal.tags, "intensity": signal.intensity,
+	})
+	if err != nil { return }
 	priority := 85
 	switch signal.tier { case "ALTA": priority = 90; case "MEDIA": priority = 70; case "BAJA": priority = 50 }
 	st.sched.Emit(bus.CognitivePacket{
@@ -126,17 +134,34 @@ func (st *SignalTagger) emitSignal(signal taggedSignal) {
 
 func (st *SignalTagger) persistToQueue(signal taggedSignal) {
 	tagsJSON, _ := json.Marshal(signal.tags)
-	record := map[string]interface{}{"signal_id": signal.pkt.ID, "payload": string(signal.pkt.Payload), "relevance_score": signal.relevance, "tier": signal.tier, "tags": string(tagsJSON), "intensity": signal.intensity, "source": signal.pkt.Source, "enqueued_at": st.clock.NowMilli(), "processed": false}
+	record := map[string]interface{}{
+		"signal_id": signal.pkt.ID, "payload": string(signal.pkt.Payload),
+		"relevance_score": signal.relevance, "tier": signal.tier,
+		"tags": string(tagsJSON), "intensity": signal.intensity,
+		"source": signal.pkt.Source, "enqueued_at": st.clock.NowMilli(), "processed": false,
+	}
 	payload, _ := json.Marshal(record)
-	st.sched.Emit(bus.CognitivePacket{ID: fmt.Sprintf("sq_%s", signal.pkt.ID), Type: bus.Meta, Source: "signal_tagger", Target: "long_term_memory", Priority: 25, Timestamp: st.clock.NowMilli(), Payload: payload, Tags: []string{"signal_queue", signal.tier}, TTL: 5})
+	st.sched.Emit(bus.CognitivePacket{
+		ID: fmt.Sprintf("sq_%s", signal.pkt.ID), Type: bus.Meta, Source: "signal_tagger",
+		Target: "long_term_memory", Priority: 25, Timestamp: st.clock.NowMilli(),
+		Payload: payload, Tags: []string{"signal_queue", signal.tier}, TTL: 5,
+	})
 }
 
 func (st *SignalTagger) extractTags(payload string) []string {
 	l := strings.ToLower(payload)
 	t := []string{"tagged"}
-	for _, p := range []string{"hola", "buenas", "hey", "adiós", "gracias", "por favor", "disculpa"} { if strings.Contains(l, p) { t = append(t, "social"); break } }
-	for _, p := range []string{"urgente", "ahora", "ya", "inmediato", "crítico", "emergencia"} { if strings.Contains(l, p) { t = append(t, "urgent"); break } }
-	if strings.Contains(l, "?") || strings.HasPrefix(l, "qué") || strings.HasPrefix(l, "cómo") || strings.HasPrefix(l, "cuándo") || strings.HasPrefix(l, "dónde") || strings.HasPrefix(l, "quién") { t = append(t, "question") }
-	for _, p := range []string{"batería", "battery", "ubicación", "gps", "wifi", "cámara", "foto", "linterna", "notificación", "alarma", "configuración"} { if strings.Contains(l, p) { t = append(t, "tool_request"); break } }
+	for _, p := range []string{"hola", "buenas", "hey", "adiós", "gracias", "por favor", "disculpa"} {
+		if strings.Contains(l, p) { t = append(t, "social"); break }
+	}
+	for _, p := range []string{"urgente", "ahora", "ya", "inmediato", "crítico", "emergencia"} {
+		if strings.Contains(l, p) { t = append(t, "urgent"); break }
+	}
+	if strings.Contains(l, "?") || strings.HasPrefix(l, "qué") || strings.HasPrefix(l, "cómo") || strings.HasPrefix(l, "cuándo") || strings.HasPrefix(l, "dónde") || strings.HasPrefix(l, "quién") {
+		t = append(t, "question")
+	}
+	for _, p := range []string{"batería", "battery", "ubicación", "gps", "wifi", "cámara", "foto", "linterna", "notificación", "alarma", "configuración"} {
+		if strings.Contains(l, p) { t = append(t, "tool_request"); break }
+	}
 	return t
 }

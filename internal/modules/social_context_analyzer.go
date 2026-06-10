@@ -3,6 +3,7 @@ package modules
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/sanchezsase1991-sys/Nexo_ss/internal/bus"
@@ -10,19 +11,40 @@ import (
 	"github.com/sanchezsase1991-sys/Nexo_ss/internal/scheduler"
 )
 
+type SocialValidation struct {
+	CoherenceScore   float64
+	IntentionDetected string
+	EmotionalState  string
+	TrustLevel      float64
+}
+
 type SocialContextAnalyzer struct {
 	sched    *scheduler.Scheduler
 	clock    scheduler.Clock
 	stateReg *StateRegister
-	agents   map[bus.AgentID]bus.AgentProfile
-	mu       sync.RWMutex
 	mem      *memory.MemoryBus
+	mu       sync.Mutex
+	agentProfiles map[string]*AgentProfile
+}
+
+type AgentProfile struct {
+	AgentID             string
+	Name                string
+	RelationshipType    string
+	Familiarity         float64
+	TrustScore          float64
+	EmotionalValence    float64
+	LastInteraction     int64
+	InteractionCount    int
+	CommunicationStyle  string
+	PredictedState      string
+	Inconsistencies     int
 }
 
 func NewSocialContextAnalyzer(stateReg *StateRegister, clock scheduler.Clock, mem *memory.MemoryBus) *SocialContextAnalyzer {
 	return &SocialContextAnalyzer{
 		stateReg: stateReg, clock: clock, mem: mem,
-		agents: make(map[bus.AgentID]bus.AgentProfile),
+		agentProfiles: make(map[string]*AgentProfile),
 	}
 }
 
@@ -33,59 +55,74 @@ func (sca *SocialContextAnalyzer) Handle(pkt bus.CognitivePacket) {
 	thought, err := pkt.AsThoughtState()
 	if err != nil { return }
 	validation := sca.validateSocialContext(thought)
-	agentID := bus.AgentID(thought.Source)
-	sca.updateAgentModel(agentID, thought, validation)
-	rp, _ := json.Marshal(map[string]interface{}{"thought_id": thought.OriginalID, "validation": validation})
+	validationJSON, _ := json.Marshal(validation)
 	sca.sched.Emit(bus.CognitivePacket{
-		ID: fmt.Sprintf("social_%s", pkt.ID), Type: bus.Thought, Source: "social_context_analyzer",
-		Target: "control_planner", Priority: 75, Timestamp: sca.clock.NowMilli(),
-		Payload: rp, Tags: []string{"social_context"}, TTL: 3,
+		ID:        fmt.Sprintf("social_%s", pkt.ID),
+		Type:      bus.Meta,
+		Source:    "social_context_analyzer",
+		Target:    "control_planner",
+		Priority:  65,
+		Timestamp: sca.clock.NowMilli(),
+		Payload:   validationJSON,
+		Tags:      []string{"social_validation"},
+		TTL:       3,
 	})
-	if validation.ShouldInhibit {
-		sca.sched.Emit(bus.CognitivePacket{
-			ID: fmt.Sprintf("inhibit_%s", pkt.ID), Type: bus.Action, Source: "social_context_analyzer",
-			Target: "auto_response_regulator", Priority: 90, Timestamp: sca.clock.NowMilli(),
-			Payload: []byte(fmt.Sprintf(`{"reason":"%s"}`, validation.InhibitReason)),
-			Tags: []string{"inhibited"}, TTL: 2,
-		})
-	}
 }
 
-func (sca *SocialContextAnalyzer) validateSocialContext(thought bus.ThoughtState) bus.ValidationResult {
+func (sca *SocialContextAnalyzer) validateSocialContext(thought bus.ThoughtState) SocialValidation {
 	state := sca.stateReg.GetState()
-	coherence := 0.8
-	if thought.HasImplicitContent() && state.Saturacion > 0.7 { coherence -= 0.3 }
-	if thought.IsFromKnownAgent() {
-		agentID := bus.AgentID(thought.Source)
-		sca.mu.RLock()
-		profile, ok := sca.agents[agentID]
-		sca.mu.RUnlock()
-		if ok { coherence = clamp(coherence+profile.TrustScore*0.2, 0, 1) }
-	}
-	socialRisk := 0.1
-	if thought.Intensity > 0.8 && !thought.IsFromKnownAgent() { socialRisk += 0.3 }
-	if thought.IsUrgent() && state.Saturacion > 0.6 { socialRisk += 0.2 }
-	shouldInhibit := false
-	inhibitReason := ""
-	if socialRisk > 0.7 { shouldInhibit = true; inhibitReason = "high_social_risk" }
-	if coherence < 0.3 { shouldInhibit = true; inhibitReason = "low_coherence" }
-	optimalTone := "balanced"
-	if thought.IsSocial() && state.Valencia > 0.5 { optimalTone = "empathic" }
-	if thought.IsUrgent() { optimalTone = "direct" }
-	if state.Saturacion > 0.7 { optimalTone = "minimal" }
-	return bus.ValidationResult{
-		CoherenceScore: coherence, ShouldInhibit: shouldInhibit,
-		InhibitReason: inhibitReason, OptimalTone: optimalTone, SocialRisk: socialRisk,
+	coherence := 0.5
+	if thought.IsSocial() { coherence += 0.2 }
+	if thought.IsFromKnownAgent() { coherence += 0.15 }
+	if state.PresionSocial > 0.5 { coherence += 0.1 }
+	return SocialValidation{
+		CoherenceScore:   clamp(coherence, 0, 1),
+		IntentionDetected: sca.detectIntention(thought),
+		EmotionalState:  sca.classifyEmotion(state),
+		TrustLevel:      sca.getAgentTrust(thought.Source),
 	}
 }
 
-func (sca *SocialContextAnalyzer) updateAgentModel(agentID bus.AgentID, thought bus.ThoughtState, validation bus.ValidationResult) {
+func (sca *SocialContextAnalyzer) detectIntention(thought bus.ThoughtState) string {
+	if thought.IsUrgent() { return "urgency" }
+	if thought.IsSocial() { return "social_connection" }
+	if thought.IsQuestion() { return "information_seeking" }
+	if thought.HasImplicitContent() { return "implicit_communication" }
+	return "neutral"
+}
+
+func (sca *SocialContextAnalyzer) classifyEmotion(state SystemState) string {
+	if state.Valencia > 0.6 && state.Intensidad > 0.5 { return "positive_high_arousal" }
+	if state.Valencia > 0.6 && state.Intensidad <= 0.5 { return "positive_low_arousal" }
+	if state.Valencia < 0.4 && state.Intensidad > 0.5 { return "negative_high_arousal" }
+	if state.Valencia < 0.4 && state.Intensidad <= 0.5 { return "negative_low_arousal" }
+	return "neutral"
+}
+
+func (sca *SocialContextAnalyzer) getAgentTrust(agentID string) float64 {
+	if agentID == "" || agentID == "unknown" { return 0.5 }
 	sca.mu.Lock()
 	defer sca.mu.Unlock()
-	profile, exists := sca.agents[agentID]
-	if !exists { profile = bus.AgentProfile{ID: agentID, TrustScore: 0.5, RelationshipType: "stranger"} }
-	profile.LastInteraction = sca.clock.NowMilli()
-	profile.InteractionCount++
-	profile.TrustScore = clamp(profile.TrustScore+0.01, 0, 1)
-	sca.agents[agentID] = profile
+	if profile, exists := sca.agentProfiles[agentID]; exists {
+		return profile.TrustScore
+	}
+	return 0.5
+}
+
+func (sca *SocialContextAnalyzer) extractTags(payload string) []string {
+	l := strings.ToLower(payload)
+	t := []string{"tagged"}
+	for _, p := range []string{"hola", "buenas", "hey", "adiós", "gracias", "por favor", "disculpa"} {
+		if strings.Contains(l, p) { t = append(t, "social"); break }
+	}
+	for _, p := range []string{"urgente", "ahora", "ya", "inmediato", "crítico", "emergencia"} {
+		if strings.Contains(l, p) { t = append(t, "urgent"); break }
+	}
+	if strings.Contains(l, "?") {
+		t = append(t, "question")
+	}
+	for _, p := range []string{"batería", "battery", "ubicación", "gps", "wifi", "cámara", "foto", "linterna", "notificación", "alarma", "configuración"} {
+		if strings.Contains(l, p) { t = append(t, "tool_request"); break }
+	}
+	return t
 }

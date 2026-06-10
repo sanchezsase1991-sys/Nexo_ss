@@ -22,7 +22,7 @@ type ToolDecider struct {
 	clock    scheduler.Clock
 	stateReg *StateRegister
 	registry map[bus.ToolName]bus.ToolCapability
-	history  []bus.ToolResult
+	history  []bus.ToolExecResult
 	mu       sync.RWMutex
 }
 
@@ -30,7 +30,7 @@ func NewToolDecider(stateReg *StateRegister, clock scheduler.Clock) *ToolDecider
 	return &ToolDecider{
 		stateReg: stateReg, clock: clock,
 		registry: ToolRegistry,
-		history:  make([]bus.ToolResult, 0, maxToolHistory),
+		history:  make([]bus.ToolExecResult, 0, maxToolHistory),
 	}
 }
 
@@ -145,9 +145,9 @@ func (td *ToolDecider) missingRequired(tool *bus.ToolCapability, params map[stri
 	return missing
 }
 
-func (td *ToolDecider) executeTool(tool *bus.ToolCapability, params map[string]string) bus.ToolResult {
+func (td *ToolDecider) executeTool(tool *bus.ToolCapability, params map[string]string) bus.ToolExecResult {
 	start := td.clock.NowMilli()
-	result := bus.ToolResult{ToolName: tool.Name, Timestamp: start}
+	result := bus.ToolExecResult{ToolName: tool.Name, Timestamp: start}
 	switch tool.Name {
 	case bus.ToolBattery: result.Success = true; result.Data = "Batería: 85%"
 	case bus.ToolLocation: result.Success = true; result.Data = "Ubicación: Lat 19.4326, Lon -99.1332"
@@ -174,7 +174,7 @@ func (td *ToolDecider) executeTool(tool *bus.ToolCapability, params map[string]s
 	return result
 }
 
-func (td *ToolDecider) emitToolResult(result bus.ToolResult, pkt bus.CognitivePacket) {
+func (td *ToolDecider) emitToolResult(result bus.ToolExecResult, pkt bus.CognitivePacket) {
 	payload, _ := json.Marshal(result)
 	td.sched.Emit(bus.CognitivePacket{
 		ID: fmt.Sprintf("tool_%s", pkt.ID), Type: bus.ToolResult, Source: "tool_decider",
@@ -183,9 +183,9 @@ func (td *ToolDecider) emitToolResult(result bus.ToolResult, pkt bus.CognitivePa
 	})
 }
 
-func (td *ToolDecider) GetHistory() []bus.ToolResult {
+func (td *ToolDecider) GetHistory() []bus.ToolExecResult {
 	td.mu.RLock(); defer td.mu.RUnlock()
-	result := make([]bus.ToolResult, len(td.history))
+	result := make([]bus.ToolExecResult, len(td.history))
 	copy(result, td.history)
 	return result
 }

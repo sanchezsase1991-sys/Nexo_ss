@@ -27,12 +27,12 @@ type AttentionState int
 const (AttentionFlow AttentionState = iota; AttentionSustained; AttentionDegrading; AttentionCollapsed)
 
 func (s SystemState) AttentionMode() AttentionState {
-	ps := s.Valencia*0.4+s.Motivacion*0.3+s.PresionSocial*0.3
+	ps := s.Valencia*0.4 + s.Motivacion*0.3 + s.PresionSocial*0.3
 	cap := s.CognitiveCapacity()
 	switch {
-	case ps>0.7&&cap>0.6: return AttentionFlow
-	case ps>0.4&&cap>0.4: return AttentionSustained
-	case cap>0.2: return AttentionDegrading
+	case ps > 0.7 && cap > 0.6: return AttentionFlow
+	case ps > 0.4 && cap > 0.4: return AttentionSustained
+	case cap > 0.2: return AttentionDegrading
 	default: return AttentionCollapsed
 	}
 }

@@ -2,6 +2,7 @@ package modules
 
 import (
 	"encoding/json"
+	"fmt"
 	"sync"
 	"time"
 
@@ -52,7 +53,11 @@ func (mcm *MetaCognitionMonitor) Handle(pkt bus.CognitivePacket) {
 	if pkt.Type == bus.Meta {
 		var payload map[string]interface{}
 		json.Unmarshal(pkt.Payload, &payload)
-		if _, ok := payload["error"]; ok { mcm.mu.Lock(); mcm.bugsDetected++; mcm.mu.Unlock() }
+		if _, ok := payload["error"]; ok {
+			mcm.mu.Lock()
+			mcm.bugsDetected++
+			mcm.mu.Unlock()
+		}
 	}
 }
 
@@ -63,8 +68,14 @@ func (mcm *MetaCognitionMonitor) RunDiagnostic() {
 		Intensidad: state.Intensidad, Valencia: state.Valencia,
 		Stress: state.Stress(), CognitiveCapacity: state.CognitiveCapacity(),
 	}
-	if mcm.wm != nil { impact := mcm.wm.CheckOverflow(); diag.Overflow = impact.CalibrationPrecision < 0.8 }
-	if mcm.arr != nil { stats := mcm.arr.GetStats(); diag.InhibitCount = stats["total_inhibitions"] }
+	if mcm.wm != nil {
+		impact := mcm.wm.CheckOverflow()
+		diag.Overflow = impact.CalibrationPrecision < 0.8
+	}
+	if mcm.arr != nil {
+		stats := mcm.arr.GetStats()
+		diag.InhibitCount = stats["total_inhibitions"]
+	}
 	mcm.mu.RLock()
 	diag.FalsePositives = mcm.falsePositives
 	diag.BugsDetected = mcm.bugsDetected

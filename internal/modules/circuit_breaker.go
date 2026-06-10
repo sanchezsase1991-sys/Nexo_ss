@@ -44,11 +44,11 @@ func (cb *CircuitBreaker) Allow() bool {
 	currentState := CircuitState(cb.state.Load())
 	switch currentState {
 	case CircuitClosed:
-		if atomic.AddInt32(&cb.currentLoad, 1) > cb.maxLoad { atomic.AddInt32(&cb.currentLoad, -1); cb.trip(); return false }
+		if cb.currentLoad.Add(1) > cb.maxLoad { cb.currentLoad.Add(-1); cb.trip(); return false }
 		return true
 	case CircuitHalfOpen:
-		if atomic.AddInt32(&cb.currentLoad, 1) == 1 { return true }
-		atomic.AddInt32(&cb.currentLoad, -1)
+		if cb.currentLoad.Add(1) == 1 { return true }
+		cb.currentLoad.Add(-1)
 		return false
 	case CircuitOpen:
 		cb.mu.Lock()
@@ -61,7 +61,7 @@ func (cb *CircuitBreaker) Allow() bool {
 }
 
 func (cb *CircuitBreaker) Done(success bool) {
-	atomic.AddInt32(&cb.currentLoad, -1)
+	cb.currentLoad.Add(-1)
 	if success { cb.successCount.Add(1); cb.failureCount.Store(0); cb.state.Store(int32(CircuitClosed)) } else { cb.failureCount.Add(1); cb.mu.Lock(); cb.lastFailureTime = time.Now().UnixMilli(); cb.mu.Unlock() }
 }
 

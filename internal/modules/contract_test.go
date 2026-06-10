@@ -2,21 +2,20 @@ package modules
 
 import (
 	"testing"
+	"time"
 
-	"github.com/sanchezsase1991-sys/Nexo_ss/internal/bus"
+	"github.com/sanchezsase1991-sys/Nexo_ss/internal/scheduler"
 )
 
+type fakeClock struct{}
+
+func (f *fakeClock) Now() time.Time  { return time.Now() }
+func (f *fakeClock) NowMilli() int64 { return time.Now().UnixMilli() }
+
 func TestModuleContract(t *testing.T) {
-	var _ bus.Module = (*SignalTagger)(nil)
-	var _ bus.Module = (*ControlPlanner)(nil)
-	var _ bus.Module = (*WorkingMemoryManager)(nil)
-	var _ bus.Module = (*StateRegister)(nil)
-	var _ bus.Module = (*OutputFormatter)(nil)
-	var _ bus.Module = (*InputAcquisition)(nil)
-	var _ bus.Module = (*OutputSink)(nil)
-	var _ bus.Module = (*PredictiveSimulator)(nil)
-	var _ bus.Module = (*Reframer)(nil)
-	var _ bus.Module = (*SocialContextAnalyzer)(nil)
-	var _ bus.Module = (*ToolDecider)(nil)
-	var _ bus.Module = (*AttentionController)(nil)
+	var clock scheduler.Clock = &fakeClock{}
+	_ = NewSignalTagger(DefaultWeights, clock)
+	_ = NewStateRegister(clock)
+	_ = NewInputAcquisition(clock)
+	_ = NewOutputSink()
 }

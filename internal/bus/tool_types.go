@@ -50,7 +50,7 @@ type ToolParam struct {
 	Description string `json:"description"`
 }
 
-type ToolResult struct {
+type ToolExecResult struct {
 	ToolName  ToolName `json:"tool_name"`
 	Success   bool     `json:"success"`
 	Data      string   `json:"data"`

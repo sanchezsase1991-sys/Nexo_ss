@@ -95,7 +95,7 @@ func main() {
 
 	sink := modules.NewOutputSink()
 
-	// ─── 8 NUEVOS MÓDULOS ───
+	// ─── 8 MÓDULOS EXISTENTES ───
 	inhibitoryCtrl := modules.NewInhibitoryControl(state, socialAnalyzer, clock)
 	inhibitoryCtrl.SetScheduler(sched)
 
@@ -120,6 +120,34 @@ func main() {
 	semanticNet := modules.NewSemanticNetwork(clock)
 	semanticNet.SetScheduler(sched)
 
+	// ─── 9 NUEVOS MÓDULOS COGNITIVOS (SECCIÓN 3-11) ───
+	perceptionGate := modules.NewPerceptionGate(state, clock, socialAnalyzer, wm)
+	perceptionGate.SetScheduler(sched)
+
+	actionExec := modules.NewActionExecutor(state, clock, wm, perceptionGate)
+	actionExec.SetScheduler(sched)
+
+	goalManager := modules.NewGoalManager(state, clock, wm)
+	goalManager.SetScheduler(sched)
+
+	motivationEngine := modules.NewMotivationEngine(state, clock, wm)
+	motivationEngine.SetScheduler(sched)
+
+	resourcePlanner := modules.NewResourcePlanner(state, clock, wm)
+	resourcePlanner.SetScheduler(sched)
+
+	visualProc := modules.NewVisualProcessor(state, clock)
+	visualProc.SetScheduler(sched)
+
+	prosodyAnalyzer := modules.NewProsodyAnalyzer(state, clock)
+	prosodyAnalyzer.SetScheduler(sched)
+
+	spatialInt := modules.NewSpatialIntegrator(state, clock)
+	spatialInt.SetScheduler(sched)
+
+	episynapticMem := modules.NewEpisynapticMemory(state, clock, wm)
+	episynapticMem.SetScheduler(sched)
+
 	// ─── REGISTRO DE HANDLERS ───
 	shutdownCh := make(chan struct{})
 
@@ -141,11 +169,33 @@ func main() {
 	sched.Register(bus.Thought, knowledgeLinker.Handle)
 	sched.Register(bus.Thought, semanticNet.Handle)
 
+	// 9 nuevos handlers de Thought (SECCIÓN 3-11)
+	sched.Register(bus.Thought, perceptionGate.Handle)
+	sched.Register(bus.Thought, actionExec.Handle)
+	sched.Register(bus.Thought, goalManager.Handle)
+	sched.Register(bus.Thought, motivationEngine.Handle)
+	sched.Register(bus.Thought, resourcePlanner.Handle)
+	sched.Register(bus.Thought, visualProc.Handle)
+	sched.Register(bus.Thought, prosodyAnalyzer.Handle)
+	sched.Register(bus.Thought, spatialInt.Handle)
+	sched.Register(bus.Thought, episynapticMem.Handle)
+
 	sched.Register(bus.Meta, state.Handle)
 	sched.Register(bus.Meta, ltm.Handle)
 	sched.Register(bus.Meta, mcm.Handle)
 	sched.Register(bus.Meta, attentionCtrl.Handle)
 	sched.Register(bus.Meta, fatigueComp.Handle)
+
+	// 9 nuevos handlers de Meta (SECCIÓN 3-11)
+	sched.Register(bus.Meta, perceptionGate.Handle)
+	sched.Register(bus.Meta, actionExec.Handle)
+	sched.Register(bus.Meta, goalManager.Handle)
+	sched.Register(bus.Meta, motivationEngine.Handle)
+	sched.Register(bus.Meta, resourcePlanner.Handle)
+	sched.Register(bus.Meta, visualProc.Handle)
+	sched.Register(bus.Meta, prosodyAnalyzer.Handle)
+	sched.Register(bus.Meta, spatialInt.Handle)
+	sched.Register(bus.Meta, episynapticMem.Handle)
 
 	sched.Register(bus.Memory, wm.Handle)
 	sched.Register(bus.Memory, ltm.Handle)
