@@ -1,6 +1,6 @@
 package bus
 
-import "github.com/sanchezsase1991-sys/Nexo/internal/scheduler"
+import "github.com/sanchezsase1991-sys/Nexo_ss/internal/scheduler"
 
 type Module interface {
 	Handle(pkt CognitivePacket)
