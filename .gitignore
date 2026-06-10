@@ -21,3 +21,6 @@ nexo-ss.exe
 .vscode/
 *.swp
 *.swo
+*.db
+*.db-shm
+*.db-wal
