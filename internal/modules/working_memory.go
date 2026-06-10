@@ -6,9 +6,9 @@ import (
 	"math"
 	"sync"
 
-	"github.com/sanchezsase1991-sys/Nexo/internal/bus"
-	"github.com/sanchezsase1991-sys/Nexo/internal/memory"
-	"github.com/sanchezsase1991-sys/Nexo/internal/scheduler"
+	"github.com/sanchezsase1991-sys/Nexo_ss/internal/bus"
+	"github.com/sanchezsase1991-sys/Nexo_ss/internal/memory"
+	"github.com/sanchezsase1991-sys/Nexo_ss/internal/scheduler"
 )
 
 const (StandardCapacityMin = 4; StandardCapacityMax = 7; NexoCapacityMin = 9; NexoCapacityMax = 12)
