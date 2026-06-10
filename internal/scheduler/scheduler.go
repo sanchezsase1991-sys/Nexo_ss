@@ -7,7 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/sanchezsase1991-sys/Nexo/internal/bus"
+	"github.com/sanchezsase1991-sys/Nexo_ss/internal/bus"
 )
 
 type RoutingPolicy struct {
