@@ -129,16 +129,16 @@ func (cp *ControlPlanner) resolveDecision(thought bus.ThoughtState, state System
 	switch {
 	case coherenceScore >= 0.8 && phase == PhaseProductiva:
 		return DecisionResult{State: DecisionAligned, Score: score, ShouldExecute: true}
-	case coherenceScore >= 0.6 && phase != PhaseModoSeguro:
+	case coherenceScore >= 0.5 && phase != PhaseModoSeguro:
 		return DecisionResult{State: DecisionPartialMatch, Score: score, ShouldExecute: true, Rumiacion: true}
-	case coherenceScore >= 0.4 && phase == PhaseProductiva:
-		return DecisionResult{State: DecisionPendingReassessment, Score: score, Reenqueue: true}
+	case phase == PhaseProductiva:
+		return DecisionResult{State: DecisionAligned, Score: score, ShouldExecute: true}
 	case coherenceScore >= 0.3 && phase == PhaseDegradacion:
-		return DecisionResult{State: DecisionPendingReassessment, Score: score, Rumiacion: true, Reenqueue: true}
+		return DecisionResult{State: DecisionPendingReassessment, Score: score, Rumiacion: true, ShouldExecute: true}
 	case coherenceScore < 0.3 || phase >= PhaseAgotamiento:
 		return DecisionResult{State: DecisionBlocked, Score: score, Deadlock: true}
 	default:
-		return DecisionResult{State: DecisionPendingReassessment, Score: score, Reenqueue: true}
+		return DecisionResult{State: DecisionPartialMatch, Score: score, ShouldExecute: true}
 	}
 }
 

@@ -80,10 +80,10 @@ func (sr *StateRegister) Handle(pkt bus.CognitivePacket) {
 func (sr *StateRegister) DecayTick() {
 	sr.mu.Lock()
 	defer sr.mu.Unlock()
-	sr.state.Intensidad *= 0.95
-	sr.state.Saturacion *= 0.90
-	sr.state.PresionSocial *= 0.95
-	sr.state.PresionTemporal *= 0.97
+	sr.state.Intensidad *= 0.60
+	sr.state.Saturacion *= 0.50
+	sr.state.PresionSocial *= 0.70
+	sr.state.PresionTemporal *= 0.80
 	sr.state.Motivacion *= 0.99
 	t := 0.5
 	if sr.state.Saturacion > 0.7 { t = 0.3 } else if sr.state.Intensidad > 0.8 { t = 0.4 }

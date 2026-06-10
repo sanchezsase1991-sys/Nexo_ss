@@ -1,7 +1,11 @@
 package main
 
 import (
+	"bufio"
+	"fmt"
 	"log"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/sanchezsase1991-sys/Nexo_ss/internal/bus"
@@ -216,7 +220,7 @@ func main() {
 	}()
 
 	go func() {
-		ticker := time.NewTicker(1 * time.Second)
+		ticker := time.NewTicker(500 * time.Millisecond)
 		defer ticker.Stop()
 		for range ticker.C { state.DecayTick() }
 	}()
@@ -228,19 +232,19 @@ func main() {
 	}()
 
 	go func() {
-		ticker := time.NewTicker(2 * time.Second)
+		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
 		for range ticker.C { tagger.FlushMediumQueue() }
 	}()
 
 	go func() {
-		ticker := time.NewTicker(5 * time.Second)
+		ticker := time.NewTicker(60 * time.Second)
 		defer ticker.Stop()
 		for range ticker.C { tagger.FlushLowQueue() }
 	}()
 
 	go func() {
-		ticker := time.NewTicker(3 * time.Second)
+		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
 		for range ticker.C { tagger.PromoteFromLow(state.GetState()) }
 	}()
@@ -267,17 +271,29 @@ func main() {
 	}()
 
 	log.Println("[NEXO] Sistema completo. 9 nuevos módulos integrados.")
+	log.Println("[NEXO] Modo interactivo. Escribe 'salir' para terminar.")
 
 	go func() {
-		time.Sleep(1 * time.Second)
-		input.ReceiveSignal("Hola sistema", "user", 0.6, []string{"social"})
-		time.Sleep(2 * time.Second)
-		input.ReceiveSignal("Necesito ayuda urgente", "user", 0.9, []string{"urgent"})
-		time.Sleep(2 * time.Second)
-		input.ReceiveSignal("¿Qué batería tengo?", "user", 0.5, []string{"question", "tool_request"})
+		time.Sleep(300 * time.Millisecond)
+		input.ReceiveSignal("Nexo iniciado", "system", 0.2, []string{"system_start"})
+	}()
+
+	go func() {
+		time.Sleep(800 * time.Millisecond)
+		scanner := bufio.NewScanner(os.Stdin)
+		fmt.Print(">>> ")
+		for scanner.Scan() {
+			texto := strings.TrimSpace(scanner.Text())
+			if texto == "" { fmt.Print(">>> "); continue }
+			if texto == "salir" || texto == "exit" { shutdownCh <- struct{}{}; return }
+			input.ReceiveSignal(texto, "user", 0.5, []string{"question"})
+			time.Sleep(600 * time.Millisecond)
+			fmt.Print(">>> ")
+		}
 	}()
 
 	_ = circuitBreaker
 	_ = resourceEst
-	select {}
+	<-shutdownCh
+	log.Println("[NEXO] Cerrando sistema...")
 }

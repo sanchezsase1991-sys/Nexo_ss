@@ -43,6 +43,12 @@ func (st *SignalTagger) Handle(pkt bus.CognitivePacket) {
 	intensity := 0.5
 	for _, t := range pkt.Tags { if strings.HasPrefix(t, "intensity:") { fmt.Sscanf(t, "intensity:%f", &intensity) } }
 	tags := st.extractTags(payload)
+	// Preservar etiquetas originales del paquete (excepto intensity)
+	for _, t := range pkt.Tags {
+		if !strings.HasPrefix(t, "intensity:") {
+			tags = append(tags, t)
+		}
+	}
 	state := st.stateReg.GetState()
 	relevance := st.computeRelevance(intensity, state)
 	var tier string
@@ -70,8 +76,10 @@ func (st *SignalTagger) Handle(pkt bus.CognitivePacket) {
 		st.mu.Unlock()
 		if state.CognitiveCapacity() > 0.6 { st.emitSignal(signal) }
 	}
-	if state.CognitiveCapacity() > 0.7 && len(st.lowQueue) > 0 { st.FlushLowQueue() }
-	if state.CognitiveCapacity() > 0.5 && len(st.mediumQueue) > 0 { st.FlushMediumQueue() }
+	// NOTA: El flush automático en recepción causa ciclos de realimentación.
+	// Las colas se vacían en segundo plano con temporizadores.
+	// if state.CognitiveCapacity() > 0.7 && len(st.lowQueue) > 0 { st.FlushLowQueue() }
+	// if state.CognitiveCapacity() > 0.5 && len(st.mediumQueue) > 0 { st.FlushMediumQueue() }
 }
 
 func (st *SignalTagger) computeRelevance(intensity float64, state SystemState) float64 {
